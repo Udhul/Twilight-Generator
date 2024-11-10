@@ -1,24 +1,33 @@
 from twilight_generator import TwilightState
 from utils import lerp, slerp
-from PySide6.QtCore import QObject, Signal, Slot, QThread
+from PySide6.QtCore import QObject, QThread, Signal, Slot
+import time
 
-class TwilightAnimator:
+
+class TwilightAnimator(QObject):
     """
     Handles interpolation between TwilightState keyframes to generate animation sequences.
+    Emits signals for each generated frame and when the animation finishes.
     """
-
-    def __init__(self, keyframes, direction='forward'):
+    
+    frame_generated = Signal(int, TwilightState)  # Signal emitting (frame_number, interpolated_state)
+    animation_finished = Signal()  # Signal emitted when animation completes
+    
+    def __init__(self, keyframes, direction='forward', framerate=30):
         """
-        Initializes the TwilightAnimator with keyframes and interpolation direction.
+        Initializes the TwilightAnimator with keyframes, interpolation direction, and framerate.
 
         Parameters:
         - keyframes (list of tuples): Each tuple should be (frame_number (int), TwilightState).
         - direction (str): 'forward' or 'backward'. Determines interpolation direction for cyclical attributes.
+        - framerate (int): Frames per second. Determines the delay between frame generations.
         """
+        super().__init__()
+        
         if not keyframes:
             raise ValueError("Keyframes list cannot be empty.")
         
-        # Validate and sort keyframes by frame number
+        # Sort keyframes by frame number
         self.keyframes = sorted(keyframes, key=lambda kf: kf[0])
         
         # Check for duplicate frame numbers
@@ -30,6 +39,57 @@ class TwilightAnimator:
         self.direction = direction.lower()
         if self.direction not in ['forward', 'backward']:
             raise ValueError("Interpolation direction must be 'forward' or 'backward'.")
+        
+        # Validate framerate
+        if not isinstance(framerate, (int, float)) or framerate <= 0:
+            raise ValueError("Framerate must be a positive number.")
+        self.framerate = framerate
+        self.frame_delay = 1.0 / self.framerate  # Seconds per frame
+        
+        self._is_running = False  # Control flag for animation loop
+        self._current_frame = self.keyframes[0][0]  # Initialize current frame
+
+    @Slot()
+    def run_animation(self):
+        """
+        Starts the animation sequence.
+        This method should be run in a separate QThread.
+        """
+        self._is_running = True
+        try:
+            for frame_number, state in self.sequence_generator():
+                if not self._is_running:
+                    break
+                self.frame_generated.emit(frame_number, state)
+                time.sleep(self.frame_delay)
+        finally:
+            self._is_running = False
+            self.animation_finished.emit()
+    
+    def stop_animation(self):
+        """
+        Stops the animation sequence.
+        """
+        self._is_running = False
+    
+    def set_current_frame(self, frame_number):
+        """
+        Sets the current frame to start the animation from.
+
+        Parameters:
+        - frame_number (int): The frame number to start from.
+        """
+        # Find the closest keyframe less than or equal to the desired frame
+        for i, (kf_frame, _) in enumerate(self.keyframes):
+            if kf_frame > frame_number:
+                if i == 0:
+                    self._current_frame = self.keyframes[0][0]
+                else:
+                    self._current_frame = self.keyframes[i-1][0]
+                break
+        else:
+            # If frame_number is beyond the last keyframe
+            self._current_frame = self.keyframes[-1][0]
     
     def sequence_generator(self):
         """
@@ -86,13 +146,48 @@ class TwilightAnimator:
                     interpolated_value = (value1 - delta * t) % cycle
             else:
                 # Non-cyclical attribute: linear interpolation (Only interpolate if int or float)
-                if not isinstance(value1, (int, float)):
-                    interpolated_value = value1
-                else:
+                if isinstance(value1, (int, float)) and isinstance(value2, (int, float)):
                     interpolated_value = lerp(value1, value2, t)
+                else:
+                    interpolated_value = value1  # Retain value1 if not numeric
             
             new_state_kwargs[attr] = interpolated_value
         
         # Create a new TwilightState instance with interpolated values
         interpolated_state = TwilightState(**new_state_kwargs)
         return interpolated_state
+    
+
+class AnimationThread(QThread):
+    """
+    QThread subclass to run TwilightAnimator in a separate thread.
+    """
+    def __init__(self, keyframes, direction='forward', framerate=30, parent=None):
+        super().__init__(parent)
+        self.keyframes = keyframes
+        self.direction = direction
+        self.framerate = framerate
+        self.animator = TwilightAnimator(self.keyframes, self.direction, self.framerate)
+    
+    def run(self):
+        """
+        Overrides the run method to start the animation.
+        """
+        self.animator.run_animation()
+    
+    def stop(self):
+        """
+        Stops the animation and waits for the thread to finish.
+        """
+        self.animator.stop_animation()
+        self.quit()
+        self.wait()
+    
+    def set_current_frame(self, frame_number):
+        """
+        Sets the current frame of the animator.
+
+        Parameters:
+        - frame_number (int): The frame number to set.
+        """
+        self.animator.set_current_frame(frame_number)
