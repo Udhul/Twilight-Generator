@@ -534,3 +534,47 @@ class TwilightGenerator:
             self.image.save(filepath)
         else:
             raise ValueError("No image generated to save.")
+        
+
+def interpolate_states(state1: TwilightState, state2: TwilightState, t: float, forward: bool = True) -> TwilightState:
+    """
+    Interpolates between two TwilightState instances based on t.
+
+    Parameters:
+    - state1 (TwilightState): Starting state.
+    - state2 (TwilightState): Ending state.
+    - t (float): Interpolation factor between 0 and 1.
+    - forward (bool): Interpolation direction for cyclical attributes
+
+    Returns:
+    - TwilightState: Interpolated state.
+    """
+    new_state_kwargs = {}
+
+    for attr in state1.to_dict():
+        value1 = getattr(state1, attr)
+        value2 = getattr(state2, attr)
+
+        # Check if the attribute is cyclical
+        if attr in TwilightState.CYCLICAL_ATTRIBUTES:
+            cycle = TwilightState.CYCLICAL_ATTRIBUTES[attr]
+            if forward:
+                # Calculate forward delta
+                delta = (value2 - value1) % cycle
+                interpolated_value = (value1 + delta * t) % cycle
+            else:
+                # Calculate backward delta
+                delta = (value1 - value2) % cycle
+                interpolated_value = (value1 - delta * t) % cycle
+        else:
+            # Non-cyclical attribute: linear interpolation (Only interpolate if int or float)
+            if isinstance(value1, (int, float)) and isinstance(value2, (int, float)):
+                interpolated_value = lerp(value1, value2, t)
+            else:
+                interpolated_value = value1  # Retain value1 if not numeric
+
+        new_state_kwargs[attr] = interpolated_value
+
+    # Create a new TwilightState instance with interpolated values
+    interpolated_state = TwilightState(**new_state_kwargs)
+    return interpolated_state
