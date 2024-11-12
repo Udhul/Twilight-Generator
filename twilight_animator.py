@@ -60,6 +60,45 @@ class Timeline:
         elif isinstance(keyframe, Keyframe) and keyframe in self.keyframes:
             self.keyframes.remove(keyframe)
 
+    def get_state_at_frame(self, frame_number, keyframes: Optional[list[Keyframe]] = None) -> TwilightState:
+        """
+        Get the state at a specific frame number between keyframes.
+
+        Parameters:
+        - frame_number (int): The frame number to get the state for. Should be in the range between first and last keyframe
+        - keyframes (list of Keyframe, optional): The list of keyframes to use. Defaults to the timeline's keyframes.
+
+        Returns:
+        - TwilightState: The state at the specified frame number.
+        """
+        # Prepare keyframes
+        if keyframes is None:
+            keyframes = self.keyframes
+        else:
+            keyframes = [kf for kf in keyframes if isinstance(kf, Keyframe)]
+        if not keyframes:
+            return None
+        keyframes.sort(key=lambda kf: kf.frame_number)
+
+        # If frame_number is before the first keyframe
+        if frame_number <= keyframes[0].frame_number:
+            return keyframes[0].state.copy()
+        # If frame_number is after the last keyframe
+        elif frame_number >= keyframes[-1][0]:
+            return keyframes[-1].state.copy()
+
+        # Find the two keyframes surrounding the frame_number
+        for i in range(len(keyframes) - 1):
+            start_frame, start_state = keyframes[i].frame_number, keyframes[i].state
+            end_frame, end_state = keyframes[i + 1].frame_number, keyframes[i + 1].state
+            
+            # If frame_number is between start_frame and end_frame
+            if start_frame <= frame_number <= end_frame:
+                steps_between = end_frame - start_frame
+                t = (frame_number - start_frame) / steps_between if steps_between > 0 else 0 # Get the interpolation factor
+                interpolated_state = interpolate_states(start_state, end_state, t)
+                return interpolated_state
+        return None
 
 
 class TwilightAnimator(QObject):
