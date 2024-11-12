@@ -29,11 +29,24 @@ class Timeline:
         - start_frame (int, optional): The frame number to start the animation from. Defaults to the first keyframe.
         - end_frame (int, optional): The frame number to end the animation at. Defaults to the last keyframe.
         """
-        keyframes = [kf for kf in keyframes if isinstance(kf, Keyframe)] # Filter out non-Keyframe objects
-        self.keyframes:List[Keyframe] = keyframes.sort(key=lambda kf: kf.frame_number) # Sort ascending by frame number
         self.framerate = framerate
-        self.start_frame = start_frame if start_frame is not None else keyframes[0].frame_number
-        self.end_frame = end_frame if end_frame is not None else keyframes[-1].frame_number
+        if not keyframes:
+            self.keyframes = []
+            self.start_frame = 0
+            self.end_frame = 0
+        else:
+            self.keyframes:List[Keyframe] = keyframes
+            self.start_frame = start_frame if start_frame is not None else keyframes[0].frame_number
+            self.end_frame = end_frame if end_frame is not None else keyframes[-1].frame_number
+        self.update()
+
+    def update(self, reset_start_end: bool = True):
+        """Validate and sort keyframes on timeline"""
+        self.keyframes = [kf for kf in self.keyframes if isinstance(kf, Keyframe)] # Filter out non-Keyframe objects
+        self.keyframes.sort(key=lambda kf: kf.frame_number) # Sort ascending by frame number
+        if self.keyframes and reset_start_end:
+            self.start_frame = self.keyframes[0].frame_number
+            self.end_frame = self.keyframes[-1].frame_number
 
     def add_keyframe(self, keyframe: Keyframe):
         """
@@ -46,13 +59,14 @@ class Timeline:
             raise ValueError("Keyframe must be of type Keyframe")
             
         # Check if keyframe with same frame number exists and remove it
-        for i, existing_kf in enumerate(self.keyframes):
-            if existing_kf.frame_number == keyframe.frame_number:
-                self.keyframes.pop(i)
-                break
+        if self.keyframes:
+            for i, existing_kf in enumerate(self.keyframes):
+                if existing_kf.frame_number == keyframe.frame_number:
+                    self.keyframes.pop(i)
+                    break
                 
         self.keyframes.append(keyframe)
-        self.keyframes.sort(key=lambda kf: kf.frame_number)
+        self.update()
 
     def remove_keyframe(self, frame_number: int = None, index: int = None, keyframe: Keyframe = None):
         """
@@ -94,7 +108,7 @@ class Timeline:
         if frame_number <= keyframes[0].frame_number:
             return keyframes[0].state.copy()
         # If frame_number is after the last keyframe
-        elif frame_number >= keyframes[-1][0]:
+        elif frame_number >= keyframes[-1].frame_number:
             return keyframes[-1].state.copy()
 
         # Find the two keyframes surrounding the frame_number
