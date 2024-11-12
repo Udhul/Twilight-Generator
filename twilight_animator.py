@@ -37,10 +37,20 @@ class Timeline:
 
     def add_keyframe(self, keyframe: Keyframe):
         """
-        Adds a keyframe to the timeline.
+        Adds a keyframe to the timeline. If a keyframe with the same frame number exists, it will be overwritten.
+        
+        Parameters:
+        - keyframe (Keyframe): The keyframe to add or update
         """
         if not isinstance(keyframe, Keyframe):
             raise ValueError("Keyframe must be of type Keyframe")
+            
+        # Check if keyframe with same frame number exists and remove it
+        for i, existing_kf in enumerate(self.keyframes):
+            if existing_kf.frame_number == keyframe.frame_number:
+                self.keyframes.pop(i)
+                break
+                
         self.keyframes.append(keyframe)
         self.keyframes.sort(key=lambda kf: kf.frame_number)
 
