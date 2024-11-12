@@ -2,6 +2,64 @@ from twilight_generator import TwilightState, interpolate_states
 from utils import lerp, slerp
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 import time
+from typing import List, Union, Optional
+
+
+class Keyframe:
+    def __init__(self, state: TwilightState, frame_number: int):
+        """
+        Initializes a Keyframe with a given TwilightState and frame number.
+
+        Parameters:
+        - state (TwilightState): The TwilightState associated with this keyframe.
+        - frame_number (int): The frame number associated with this keyframe.
+        """
+        self.state = state
+        self.frame_number = frame_number
+
+
+class Timeline:
+    def __init__(self, keyframes: List[Keyframe], framerate: Union[int,float] = 30, start_frame: int = None, end_frame: int = None):
+        """
+        Initializes a Timeline with a list of keyframes.
+
+        Parameters:
+        - keyframes (list of Keyframe): List of keyframes.
+        - framerate (int, optional): The framerate of the animation. Defaults to 30.
+        - start_frame (int, optional): The frame number to start the animation from. Defaults to the first keyframe.
+        - end_frame (int, optional): The frame number to end the animation at. Defaults to the last keyframe.
+        """
+        keyframes = [kf for kf in keyframes if isinstance(kf, Keyframe)] # Filter out non-Keyframe objects
+        self.keyframes:List[Keyframe] = keyframes.sort(key=lambda kf: kf.frame_number) # Sort ascending by frame number
+        self.framerate = framerate
+        self.start_frame = start_frame if start_frame is not None else keyframes[0].frame_number
+        self.end_frame = end_frame if end_frame is not None else keyframes[-1].frame_number
+
+    def add_keyframe(self, keyframe: Keyframe):
+        """
+        Adds a keyframe to the timeline.
+        """
+        if not isinstance(keyframe, Keyframe):
+            raise ValueError("Keyframe must be of type Keyframe")
+        self.keyframes.append(keyframe)
+        self.keyframes.sort(key=lambda kf: kf.frame_number)
+
+    def remove_keyframe(self, frame_number: int = None, index: int = None, keyframe: Keyframe = None):
+        """
+        Removes a keyframe from the timeline, identified by either frame_number, index or keyframe object. 
+        """
+        if isinstance(frame_number, int):
+            for i, kf in enumerate(self.keyframes):
+                if kf.frame_number == frame_number:
+                    self.keyframes.pop(i)
+                    return
+                
+        elif isinstance(index, int) and 0 <= index < len(self.keyframes):
+            self.keyframes.pop(i)
+
+        elif isinstance(keyframe, Keyframe) and keyframe in self.keyframes:
+            self.keyframes.remove(keyframe)
+
 
 
 class TwilightAnimator(QObject):
