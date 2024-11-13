@@ -153,8 +153,7 @@ class TwilightAnimator(QObject):
 
         self.frame_delay = 1.0 / self.timeline.framerate
         self._is_running = False
-        self._current_frame = self.timeline.start_frame
-
+        self.next_frame = self.timeline.start_frame # Next frame number to be generated. Not last generated frame
 
     @Slot()
     def run_animation(self):
@@ -189,7 +188,7 @@ class TwilightAnimator(QObject):
 
         target_state = self.timeline.get_state_at_frame(frame_number)
         if target_state:
-            self._current_frame = frame_number
+            self.next_frame = frame_number
             return target_state
 
     def sequence_generator(self):
@@ -199,51 +198,29 @@ class TwilightAnimator(QObject):
         Yields:
         - tuple: (frame_number (int), TwilightState instance)
         """
-        current = self._current_frame
-        while current <= self.timeline.end_frame and self._is_running:
-            state = self.timeline.get_state_at_frame(current)
+        while self.next_frame <= self.timeline.end_frame and self._is_running:
+            state = self.timeline.get_state_at_frame(self.next_frame)
             if state:
-                yield (current, state)
-            current += 1
-
-    # def sequence_generator(self, start_at_frame=0):
-    #     """
-    #     Generator that yields interpolated TwilightState instances between keyframes.
-
-    #     Yields:
-    #     - tuple: (frame_number (int), TwilightState instance)
-    #     """
-    #     num_keyframes = len(self.keyframes)
-    #     for i in range(num_keyframes - 1):
-    #         start_frame, start_state = self.keyframes[i]
-    #         end_frame, end_state = self.keyframes[i + 1]
-
-    #         if end_frame <= start_frame:
-    #             continue  # Skip invalid keyframes
-
-    #         # Number of frames to interpolate
-    #         total_steps = end_frame - start_frame
-
-    #         # TODO: get current abs frame and skip to start frame before generating states
-
-    #         for step in range(total_steps):
-    #             t = step / total_steps if total_steps > 0 else 1
-    #             interpolated_state = interpolate_states(start_state, end_state, t)
-    #             current_frame = start_frame + step
-    #             yield (current_frame, interpolated_state)
-
-    #     # Emit the last keyframe
-    #     last_frame, last_state = self.keyframes[-1]
-    #     yield (last_frame, last_state.copy())
+                yield (self.next_frame, state)
+            self.next_frame += 1
 
 class AnimationThread(QThread):
     """
     QThread subclass to run TwilightAnimator in a separate thread.
     """
 
-    def __init__(self, timeline: Timeline, direction='forward', parent=None):
+    def __init__(self, animator:TwilightAnimator = None, timeline: Timeline = None, direction='forward', parent=None):
+        """
+        Create a threaded animator. 
+        If param animator given, it will be used. 
+        Else a new animator is created from timeline and direction.
+        """
         super().__init__(parent)
-        self.animator = TwilightAnimator(timeline, direction)
+
+        if isinstance(animator, TwilightAnimator):
+            self.animator = animator
+        else:
+            self.animator = TwilightAnimator(timeline, direction)
         self.animator.moveToThread(self)
 
     def run(self):
