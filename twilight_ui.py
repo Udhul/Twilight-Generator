@@ -149,9 +149,13 @@ class MainWindow(QMainWindow):
 
         # Timeline and Keyframes storage
         self.timeline = Timeline([], framerate=30)
+        self.last_generated_frame = 0
 
-        # Animation thread
-        self.animation_thread = None
+        # Animator and Animation thread
+        self.animator = TwilightAnimator(self.timeline, direction="forward")
+        self.animation_thread = AnimationThread(self.animator)
+        self.animator.frame_generated.connect(self.update_frame, Qt.QueuedConnection)
+        self.animator.animation_finished.connect(self.on_animation_finished, Qt.QueuedConnection)
 
         # Connect signals and slots
         self.setup_connections()
@@ -328,12 +332,11 @@ class MainWindow(QMainWindow):
         fps = self.fps_slider.value()
         self.fps_value_label.setText(f"Framerate: {fps} FPS")
         if self.animation_thread and self.animation_thread.isRunning():
-            # Need to restart animation thread with new framerate
             self.animation_thread.stop()
-            self.animation_thread = AnimationThread(self.timeline, framerate=fps)
-            self.animation_thread.animator.frame_generated.connect(self.update_frame, Qt.QueuedConnection)
-            self.animation_thread.animator.animation_finished.connect(self.on_animation_finished, Qt.QueuedConnection)
+            self.timeline.framerate = fps
+            self.animator.set_current_frame(self.frame_slider.value())
             self.animation_thread.start()
+            self.play_button.setText("Pause")
 
     def toggle_play(self):
         if self.animation_thread and self.animation_thread.isRunning():
@@ -343,12 +346,12 @@ class MainWindow(QMainWindow):
             if len(self.timeline.keyframes) < 2:
                 self.show_warning("At least two keyframes are required to start animation.")
                 return
+            if self.frame_slider.value() >= self.timeline.end_frame:
+                self.frame_slider.setValue(self.timeline.start_frame)
             self.timeline.framerate = self.fps_slider.value()
-            self.animation_thread = AnimationThread(self.timeline)
-            self.animation_thread.animator.frame_generated.connect(self.update_frame, Qt.QueuedConnection)
-            self.animation_thread.animator.animation_finished.connect(self.on_animation_finished, Qt.QueuedConnection)
-            self.animation_thread.start()
+            self.animator.set_current_frame(self.frame_slider.value())            
             self.play_button.setText("Pause")
+            self.animation_thread.start()
 
     @Slot(int, TwilightState)
     def update_frame(self, frame_number, state):
