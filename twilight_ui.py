@@ -115,7 +115,7 @@ class MainWindow(QMainWindow):
         self.animation_layout = QVBoxLayout()
 
         self.fps_slider = QSlider(Qt.Horizontal)
-        self.fps_slider.setRange(1, 120)
+        self.fps_slider.setRange(1, 60)
         self.fps_slider.setValue(30)
         self.fps_value_label = QLabel("Framerate: 30 FPS")
         self.play_button = QPushButton("Play")
@@ -240,21 +240,6 @@ class MainWindow(QMainWindow):
             Qt.SmoothTransformation
         )
         self.image_label.setPixmap(pixmap)
-
-    def pil_image_to_qimage(self, pil_image):
-        # Convert PIL image to QImage
-        if pil_image.mode == "RGB":
-            r, g, b = pil_image.split()
-            pil_image = Image.merge("RGB", (r, g, b))
-            data = pil_image.tobytes("raw", "RGB")
-            qimage = QImage(data, pil_image.size[0], pil_image.size[1], QImage.Format_RGB888)
-            return qimage
-        elif pil_image.mode == "RGBA":
-            data = pil_image.convert("RGBA").tobytes("raw", "RGBA")
-            qimage = QImage(data, pil_image.size[0], pil_image.size[1], QImage.Format_RGBA8888)
-            return qimage
-        else:
-            raise NotImplementedError("Unsupported image mode: " + pil_image.mode)
 
     def add_keyframe(self):
         frame_number = self.kf_frame_input.value()
