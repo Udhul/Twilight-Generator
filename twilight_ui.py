@@ -154,7 +154,7 @@ class MainWindow(QMainWindow):
         # Animator and Animation thread
         self.animator = TwilightAnimator(self.timeline, direction="forward")
         self.animation_thread = AnimationThread(self.animator)
-        self.animator.frame_generated.connect(self.update_frame, Qt.QueuedConnection)
+        self.animator.frame_generated.connect(self.on_frame_generated, Qt.QueuedConnection)
         self.animator.animation_finished.connect(self.on_animation_finished, Qt.QueuedConnection)
 
         # Connect signals and slots
@@ -354,16 +354,9 @@ class MainWindow(QMainWindow):
             self.animation_thread.start()
 
     @Slot(int, TwilightState)
-    def update_frame(self, frame_number, state):
-        # Update TwilightGenerator's state
-        self.twilight_generator.set_state(state)
-        # Generate and display the new image
-        self.update_image()
-        # Update current frame label and frame slider
-        self.current_frame_label.setText(f"Current Frame: {frame_number}")
-        self.frame_slider.blockSignals(True)  # To prevent recursion
-        self.frame_slider.setValue(frame_number)
-        self.frame_slider.blockSignals(False)
+    def on_frame_generated(self, frame_number, state):
+        # Update UI which updates TwilightGenerator's state and renders image
+        self.update_ui_from_state(state=state, frame_number=frame_number)
 
     def on_animation_finished(self):
         self.play_button.setText("Play")
@@ -373,13 +366,29 @@ class MainWindow(QMainWindow):
         self.current_frame_label.setText(f"Current Frame: {frame_number}")
         state = self.timeline.get_state_at_frame(frame_number)
         if state:
-            self.update_ui_from_state(state)
-            if self.animation_thread and self.animation_thread.isRunning():
-                self.animation_thread.animator.set_current_frame(frame_number)
+            self.update_ui_from_state(state=state, frame_number=frame_number)
+            self.animator.set_current_frame(frame_number)
 
-    def update_ui_from_state(self, state):
+    def update_ui_from_state(self, state = None, frame_number = None):
+        '''If state give, set it as current state. Else use the already set state. 
+        If frame_number is given, set it as current frame. Else use self.last_generated_frame.
+        When giving as argument, frame number should correspond to state.'''
+        # If state is not given, use the already set state
+        if state is not None:
+            self.twilight_state = state
+        else:
+            state = self.twilight_state
+
+        # If frame_number is not given, use the already set frame_number
+        if frame_number is not None:
+            self.last_generated_frame = frame_number
+        else:
+            frame_number = self.last_generated_frame
+
         self.twilight_generator.set_state(state)
         self.update_image()
+
+        # Update UI controls with state parameters
         self.block_ui_signals(True)
         self.time_slider.setValue(int(state.time_of_day * 100))
         self.latitude_slider.setValue(int(state.latitude * 10))
@@ -389,9 +398,9 @@ class MainWindow(QMainWindow):
         render_type_index = self.render_combo.findText(state.render_type.capitalize())
         if render_type_index != -1:
             self.render_combo.setCurrentIndex(render_type_index)
+        self.current_frame_label.setText(f"Current Frame: {frame_number}")
+        self.frame_slider.setValue(frame_number)
         self.block_ui_signals(False)
-        # self.update_labels_from_state(state) # TODO: Implement
-        self.twilight_state = state.copy()
 
     def block_ui_signals(self, block):
         self.time_slider.blockSignals(block)
@@ -400,6 +409,7 @@ class MainWindow(QMainWindow):
         self.density_slider.blockSignals(block)
         self.transition_slider.blockSignals(block)
         self.render_combo.blockSignals(block)
+        self.frame_slider.blockSignals(block)
 
     def show_warning(self, message):
         QMessageBox.warning(self, "Warning", message)
