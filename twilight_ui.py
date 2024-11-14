@@ -411,10 +411,11 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
 
+    default_seed = 12345
     default_keyframes = [
-        Keyframe(TwilightState(time_of_day=0.0, latitude=0.0, longitude=0.0, star_density=2.5, render_type='flat'), 0),
-        Keyframe(TwilightState(time_of_day=12.0, latitude=45.0, longitude=180.0, star_density=5.0, render_type='flat'), 120),
-        Keyframe(TwilightState(time_of_day=24.0, latitude=0.0, longitude=360.0, star_density=2.5, render_type='flat'), 240)
+        Keyframe(TwilightState(seed=default_seed, time_of_day=0.0, latitude=0.0, longitude=0.0, star_density=2.5, render_type='flat'), 0),
+        Keyframe(TwilightState(seed=default_seed, time_of_day=12.0, latitude=45.0, longitude=180.0, star_density=5.0, render_type='flat'), 120),
+        Keyframe(TwilightState(seed=default_seed, time_of_day=24.0, latitude=0.0, longitude=360.0, star_density=2.5, render_type='flat'), 240)
     ]
     for kf in default_keyframes:
         window.timeline.add_keyframe(kf)
