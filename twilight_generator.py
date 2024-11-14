@@ -317,7 +317,7 @@ class TwilightGenerator:
 
         # Adjust brightness based on time_of_day (24-hour cycle)
         # 0 and 24 = darkest, 12 = brightest
-        night_factor = -math.cos((self.time_of_day / 12.0) * math.pi) * 0.5 + 0.5  # Inverted
+        night_factor = -math.cos((self.time_of_day / 12.0) * math.pi) * 0.5 + 1  # Inverted
 
         # Adjust brightness based on night_factor
         r = int(r * night_factor)
@@ -427,24 +427,21 @@ class TwilightGenerator:
         longitude_shift = (self.longitude / 360.0) * self.width
         latitude_shift = (self.latitude / 360.0) * self.height
 
-        # Calculate star visibility based on time of day
-        night_factor = -math.cos((self.time_of_day / 12.0) * math.pi) * 0.5 + 1
-
-        # Draw all stars with flat projection
+        # Use star density to determine how many stars to display
         density_ratio = self.star_density / self.max_density
         total_small_stars_display = int(len(self.master_small_stars) * density_ratio)
         total_big_stars_display = int(len(self.master_big_stars) * density_ratio)
 
-        # Draw small stars
+        # Draw small stars using consistent positions
         for star in self.master_small_stars[:total_small_stars_display]:
             norm_x, norm_y = star
+            # Apply shifts to normalized coordinates
             shifted_x = (norm_x * self.width + longitude_shift) % self.width
             shifted_y = (norm_y * self.height + latitude_shift) % self.height
             x = int(shifted_x)
             y = int(shifted_y)
 
-            # Apply night_factor to star brightness
-            color = tuple(int(c * night_factor) for c in self.white)
+            color = self.get_star_color(y)
 
             if 0 <= x < self.width and 0 <= y < self.height:
                 self.image.putpixel((x, y), color + (255,))
@@ -458,8 +455,7 @@ class TwilightGenerator:
             y = int(shifted_y)
             size = int(norm_size * self.width)
 
-            # Apply night_factor to star brightness
-            color = tuple(int(c * night_factor) for c in self.white)
+            color = self.get_star_color(y)
 
             points = [
                 (x, y - size),
@@ -477,7 +473,7 @@ class TwilightGenerator:
 
         # Calculate gradient position based on time of day
         # Move gradient up/down based on time - fully below view at night
-        time_factor = math.sin((self.time_of_day / 24.0) * 2 * math.pi)
+        time_factor = math.cos((self.time_of_day / 24.0) * 2 * math.pi)
         gradient_offset = max(int(self.height * (1.0 + time_factor)), 0)
         
         # Make sure gradient does not exceed image boundaries
