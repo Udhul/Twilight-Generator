@@ -240,7 +240,7 @@ class TwilightGenerator:
         size_min = max(1, int(self.width / 960))  # Ensures at least size 1
         size_max = max(2, int(self.width / 480))  # Ensures at least size 2
 
-        # Pre-generate master star lists
+        # Generate master star lists with normalized coordinates (0-1)
         self.master_small_stars = [
             (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1))
             for _ in range(self.total_small_stars)
@@ -248,7 +248,7 @@ class TwilightGenerator:
 
         self.master_big_stars = [
             (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1),
-             self.random_gen.randint(size_min, size_max) / self.width)
+            self.random_gen.randint(size_min, size_max) / self.width)
             for _ in range(self.total_big_stars)
         ]
 
@@ -259,10 +259,16 @@ class TwilightGenerator:
         Parameters:
         - state (TwilightState): The new state to apply.
         """
+        if self.seed != state.seed:
+            # Only regenerate stars if seed changes
+            self.seed = state.seed
+            self.random_gen = random.Random(self.seed)
+            self._initialize_stars()
+        
+        # Update other state parameters
         self.state = state
         self.width = state.width
         self.height = state.height
-        self.seed = state.seed
         self.time_of_day = state.time_of_day
         self.star_density = state.star_density
         self.transition_ratio = state.transition_ratio
@@ -270,15 +276,11 @@ class TwilightGenerator:
         self.longitude = state.longitude
         self.render_type = state.render_type
 
-        # Reinitialize random generator and stars if seed or star parameters change
-        self.random_gen = random.Random(self.seed)
-
-        # Re-generate master star lists based on new state
-        self._initialize_stars()
-
     def _initialize_stars(self):
-        """Re-initializes the star lists based on the current state."""
-        # Re-generate master star lists
+        """Regenerate master star lists with current seed"""
+        size_min = max(1, int(self.width / 960))
+        size_max = max(2, int(self.width / 480))
+        
         self.master_small_stars = [
             (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1))
             for _ in range(self.total_small_stars)
@@ -286,7 +288,7 @@ class TwilightGenerator:
 
         self.master_big_stars = [
             (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1),
-             self.random_gen.randint(1, 2) / self.width)
+            self.random_gen.randint(size_min, size_max) / self.width)
             for _ in range(self.total_big_stars)
         ]
 
