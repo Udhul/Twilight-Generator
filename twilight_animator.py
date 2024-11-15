@@ -1,6 +1,8 @@
-from twilight_generator import TwilightState, interpolate_states
+from twilight_generator import TwilightState, TwilightGenerator, interpolate_states
 from utils import lerp, slerp
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot
+from PySide6.QtGui import QPixmap
+from PIL import ImageQt
 import time
 from typing import List, Union, Optional
 
@@ -245,3 +247,55 @@ class AnimationThread(QThread):
         - frame_number (int): The frame number to set.
         """
         self.animator.set_current_frame(frame_number)
+
+class TwilightGeneratorThread(QThread):
+    image_ready = Signal(int, object, object)  # frame_number, state, image
+    
+    def __init__(self, width, height):
+        super().__init__()
+        self.width = width
+        self.height = height
+        self.current_state = None
+        self.next_state = None
+        self.current_frame = 0
+        self.next_frame = 0
+        self.running = True
+        self.generator = TwilightGenerator(TwilightState())
+        # self.moveToThread(self)
+        
+    def set_state(self, frame_number, state):
+        self.next_frame = frame_number
+        self.next_state = state
+        
+    def run(self):
+        while self.running:
+            if self.next_state:
+                # Take next state as current
+                self.current_state = self.next_state
+                self.current_frame = self.next_frame
+                # Clear next state since we're processing it
+                self.next_state = None
+                
+                # Generate image with current state
+                self.generator.set_state(self.current_state)
+                self.generator.generate()
+                image = self.generator.get_image()
+                
+                # Convert PIL Image to QImage
+                qt_image = ImageQt.ImageQt(image)
+                pixmap = QPixmap.fromImage(qt_image)
+                pixmap = pixmap.scaled(
+                    self.width,
+                    self.height,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation
+                )
+
+                # Emit the result
+                self.image_ready.emit(self.current_frame, self.current_state, pixmap)
+            else:
+                # Sleep briefly if no work to do
+                self.msleep(1)
+                
+    def stop(self):
+        self.running = False
