@@ -2,18 +2,43 @@ import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QSlider, QComboBox, QPushButton,
                                QSpinBox, QListWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
                                QFrame, QMessageBox)
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, Signal, Slot, QObject
 
-from twilight_generator import TwilightGenerator, TwilightState, interpolate_states
-from twilight_animator import Keyframe, Timeline, TwilightAnimator, AnimationThread
-from PIL import Image, ImageQt
+from twilight_generator import TwilightGenerator, TwilightState
+from twilight_animator import Keyframe, Timeline, TwilightAnimator, AnimationThread, TwilightGeneratorThread
+from PIL import ImageQt
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        # Setup UI elements
+        self.setup_ui()
+
+        # Initialize TwilightState and TwilightGenerator
+        self.generator_thread = TwilightGeneratorThread(self.image_label.width(), self.image_label.height())
+        self.generator_thread.image_ready.connect(self.on_image_ready)
+        self.generator_thread.start()
+
+        # Timeline and Keyframes storage
+        self.timeline = Timeline([], framerate=30)
+        self.last_generated_frame = 0
+
+        # Animator and Animation thread
+        self.animator = TwilightAnimator(self.timeline, direction="forward")
+        self.animation_thread = AnimationThread(self.animator)
+        self.animator.frame_generated.connect(self.on_frame_generated, Qt.QueuedConnection)
+        self.animator.animation_finished.connect(self.on_animation_finished, Qt.QueuedConnection)
+
+        # Connect signals and slots
+        self.setup_connections()
+
+        # Trigger input change for initial state and image generation
+        self.on_input_changed()
+
+    def setup_ui(self):
         self.setWindowTitle("Twilight Wallpaper Controller")
 
         # Create the main widget and set it as central widget
@@ -142,24 +167,6 @@ class MainWindow(QMainWindow):
         self.main_layout.addLayout(self.image_layout)
         self.main_layout.addLayout(self.controls_layout)
 
-        # Initialize TwilightState and TwilightGenerator
-        self.twilight_state = TwilightState()
-        self.twilight_generator = TwilightGenerator(self.twilight_state)
-        self.update_image()
-
-        # Timeline and Keyframes storage
-        self.timeline = Timeline([], framerate=30)
-        self.last_generated_frame = 0
-
-        # Animator and Animation thread
-        self.animator = TwilightAnimator(self.timeline, direction="forward")
-        self.animation_thread = AnimationThread(self.animator)
-        self.animator.frame_generated.connect(self.on_frame_generated, Qt.QueuedConnection)
-        self.animator.animation_finished.connect(self.on_animation_finished, Qt.QueuedConnection)
-
-        # Connect signals and slots
-        self.setup_connections()
-
     def setup_connections(self):
         # Parameter controls
         self.time_slider.valueChanged.connect(self.on_input_changed)
@@ -168,9 +175,7 @@ class MainWindow(QMainWindow):
         self.density_slider.valueChanged.connect(self.on_input_changed)
         self.transition_slider.valueChanged.connect(self.on_input_changed)
         self.render_combo.currentTextChanged.connect(self.on_input_changed)
-
-        # Seed controls
-        self.seed_apply_button.clicked.connect(self.on_seed_changed)
+        self.seed_apply_button.clicked.connect(self.on_input_changed)
 
         # Keyframe management
         self.add_kf_button.clicked.connect(self.add_keyframe)
@@ -183,21 +188,6 @@ class MainWindow(QMainWindow):
         self.play_button.clicked.connect(self.toggle_play)
         self.frame_slider.valueChanged.connect(self.on_frame_slider_changed)
 
-    def update_labels(self):
-        # Get values from sliders
-        time_of_day = self.time_slider.value() / 100.0
-        latitude = self.latitude_slider.value() / 10.0
-        longitude = self.longitude_slider.value() / 10.0
-        star_density = self.density_slider.value() / 100.0
-        transition_ratio = self.transition_slider.value() / 100.0
-
-        # Update all labels with formatted values
-        self.time_label.setText(f"Time of Day: {time_of_day:.2f}")
-        self.latitude_label.setText(f"Latitude: {latitude:.1f}")
-        self.longitude_label.setText(f"Longitude: {longitude:.1f}")
-        self.density_label.setText(f"Star Density: {star_density:.2f}")
-        self.transition_label.setText(f"Transition Ratio: {transition_ratio:.2f}")
-
     def on_input_changed(self):
         # Read all current parameter values from UI controls
         time_of_day = self.time_slider.value() / 100.0  # Since we used 0 to 2400
@@ -205,10 +195,14 @@ class MainWindow(QMainWindow):
         longitude = self.longitude_slider.value() / 10.0
         star_density = self.density_slider.value() / 100.0  # 10 to 500, represents 0.1 to 5.0
         transition_ratio = self.transition_slider.value() / 100.0  # 5 to 50, represents 0.05 to 0.5
+        seed = self.seed_input.value()
         render_type = self.render_combo.currentText().lower()
 
         # Update labels
         self.update_labels()
+
+        if not hasattr(self, 'twilight_state'):
+            self.twilight_state = TwilightState()
 
         # Update TwilightState
         self.twilight_state.time_of_day = time_of_day
@@ -216,31 +210,24 @@ class MainWindow(QMainWindow):
         self.twilight_state.longitude = longitude
         self.twilight_state.star_density = star_density
         self.twilight_state.transition_ratio = transition_ratio
+        self.twilight_state.seed = seed
         self.twilight_state.render_type = render_type
 
         # Update render type for all keyframes
         for keyframe in self.timeline.keyframes:
             keyframe.state.render_type = render_type
+            keyframe.state.seed = seed
 
         # Update TwilightGenerator's state
-        self.twilight_generator.set_state(self.twilight_state)
+        # self.twilight_generator.set_state(self.twilight_state)
+        self.generator_thread.set_state(self.frame_slider.value(), self.twilight_state)
 
         # Generate and display the new image
-        self.update_image()
-
-    def on_seed_changed(self):
-        seed = self.seed_input.value()
-        self.twilight_state.seed = seed
-
-        # Reinitialize TwilightGenerator with new seed
-        self.twilight_generator.set_state(self.twilight_state)
-
-        # Generate and display the new image
-        self.update_image()
+        # self.update_image()
 
     def update_image(self):
-        self.twilight_generator.generate()
-        image = self.twilight_generator.get_image()
+        generator = TwilightGenerator(self.twilight_state)
+        image = generator.get_image()
         # Convert PIL Image to QImage
         qt_image = ImageQt.ImageQt(image)
         pixmap = QPixmap.fromImage(qt_image)
@@ -349,10 +336,19 @@ class MainWindow(QMainWindow):
             self.play_button.setText("Pause")
             self.animation_thread.start()
 
+    @Slot(int, object, object)
+    def on_image_ready(self, frame_number, state, pixmap):
+        self.image_label.setPixmap(pixmap)
+        
+        # Update UI state without triggering new image generation
+        self.update_ui_from_state(state, frame_number)
+
     @Slot(int, TwilightState)
     def on_frame_generated(self, frame_number, state):
-        # Update UI which updates TwilightGenerator's state and renders image
-        self.update_ui_from_state(state=state, frame_number=frame_number)
+        """Bridge over to self.generator_thread.set_state(). No additional actions as of now."""
+        # # Update UI which updates TwilightGenerator's state and renders image
+        # self.update_ui_from_state(state=state, frame_number=frame_number)
+        self.generator_thread.set_state(frame_number, state)
 
     def on_animation_finished(self):
         self.play_button.setText("Play")
@@ -365,12 +361,29 @@ class MainWindow(QMainWindow):
             self.update_ui_from_state(state=state, frame_number=frame_number)
             self.animator.set_current_frame(frame_number)
 
+    def update_labels(self):
+        # Get values from sliders
+        time_of_day = self.time_slider.value() / 100.0
+        latitude = self.latitude_slider.value() / 10.0
+        longitude = self.longitude_slider.value() / 10.0
+        star_density = self.density_slider.value() / 100.0
+        transition_ratio = self.transition_slider.value() / 100.0
+        frame_number = self.frame_slider.value()
+
+        # Update all labels with formatted values
+        self.time_label.setText(f"Time of Day: {time_of_day:.2f}")
+        self.latitude_label.setText(f"Latitude: {latitude:.1f}")
+        self.longitude_label.setText(f"Longitude: {longitude:.1f}")
+        self.density_label.setText(f"Star Density: {star_density:.2f}")
+        self.transition_label.setText(f"Transition Ratio: {transition_ratio:.2f}")
+        self.current_frame_label.setText(f"Current Frame: {frame_number}")
+
     def update_ui_from_state(self, state = None, frame_number = None):
         '''If state give, set it as current state. Else use the already set state. 
         If frame_number is given, set it as current frame. Else use self.last_generated_frame.
         When giving as argument, frame number should correspond to state.'''
         # If state is not given, use the already set state
-        if state is not None:
+        if isinstance(state, TwilightState):
             self.twilight_state = state
         else:
             state = self.twilight_state
@@ -380,9 +393,6 @@ class MainWindow(QMainWindow):
             self.last_generated_frame = frame_number
         else:
             frame_number = self.last_generated_frame
-
-        self.twilight_generator.set_state(state)
-        self.update_image()
 
         # Update UI controls with state parameters
         self.block_ui_signals(True)
@@ -417,6 +427,8 @@ class MainWindow(QMainWindow):
         if self.animation_thread and self.animation_thread.isRunning():
             self.animation_thread.stop()
             self.animation_thread.wait()
+        self.generator_thread.stop()
+        self.generator_thread.wait()
         event.accept()
 
 
