@@ -183,6 +183,21 @@ class MainWindow(QMainWindow):
         self.play_button.clicked.connect(self.toggle_play)
         self.frame_slider.valueChanged.connect(self.on_frame_slider_changed)
 
+    def update_labels(self):
+        # Get values from sliders
+        time_of_day = self.time_slider.value() / 100.0
+        latitude = self.latitude_slider.value() / 10.0
+        longitude = self.longitude_slider.value() / 10.0
+        star_density = self.density_slider.value() / 100.0
+        transition_ratio = self.transition_slider.value() / 100.0
+
+        # Update all labels with formatted values
+        self.time_label.setText(f"Time of Day: {time_of_day:.2f}")
+        self.latitude_label.setText(f"Latitude: {latitude:.1f}")
+        self.longitude_label.setText(f"Longitude: {longitude:.1f}")
+        self.density_label.setText(f"Star Density: {star_density:.2f}")
+        self.transition_label.setText(f"Transition Ratio: {transition_ratio:.2f}")
+
     def on_input_changed(self):
         # Read all current parameter values from UI controls
         time_of_day = self.time_slider.value() / 100.0  # Since we used 0 to 2400
@@ -193,11 +208,7 @@ class MainWindow(QMainWindow):
         render_type = self.render_combo.currentText().lower()
 
         # Update labels
-        self.time_label.setText(f"Time of Day: {time_of_day:.2f}")
-        self.latitude_label.setText(f"Latitude: {latitude:.1f}")
-        self.longitude_label.setText(f"Longitude: {longitude:.1f}")
-        self.density_label.setText(f"Star Density: {star_density:.2f}")
-        self.transition_label.setText(f"Transition Ratio: {transition_ratio:.2f}")
+        self.update_labels()
 
         # Update TwilightState
         self.twilight_state.time_of_day = time_of_day
@@ -386,6 +397,9 @@ class MainWindow(QMainWindow):
         self.current_frame_label.setText(f"Current Frame: {frame_number}")
         self.frame_slider.setValue(frame_number)
         self.block_ui_signals(False)
+
+        # Update labels
+        self.update_labels()
 
     def block_ui_signals(self, block):
         self.time_slider.blockSignals(block)
