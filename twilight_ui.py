@@ -324,12 +324,15 @@ class MainWindow(QMainWindow):
     def on_fps_changed(self):
         fps = self.fps_slider.value()
         self.fps_value_label.setText(f"Framerate: {fps} FPS")
-        if self.animation_thread and self.animation_thread.isRunning():
-            self.animation_thread.stop()
-            self.timeline.framerate = fps
-            self.animator.set_current_frame(self.frame_slider.value())
-            self.animation_thread.start()
-            self.play_button.setText("Pause")
+        if self.animation_thread:
+            if self.animation_thread.isRunning():
+                self.animation_thread.stop()
+                self.timeline.framerate = fps
+                self.animator.set_current_frame(self.frame_slider.value())
+                self.animation_thread.start()
+            else:
+                self.timeline.framerate = fps
+                self.animator.set_current_frame(self.frame_slider.value())
 
     def toggle_play(self):
         if self.animation_thread and self.animation_thread.isRunning():
@@ -368,8 +371,11 @@ class MainWindow(QMainWindow):
         self.current_frame_label.setText(f"Current Frame: {frame_number}")
         state = self.timeline.get_state_at_frame(frame_number)
         if state:
-            self.update_ui_from_state(state=state, frame_number=frame_number)
+            if not self.animation_thread.isRunning():
+                self.generator_thread.set_state(frame_number, state)
             self.animator.set_current_frame(frame_number)
+        else:
+            print(f"No state found for frame {frame_number}")
 
     def update_labels(self):
         # Get values from sliders
