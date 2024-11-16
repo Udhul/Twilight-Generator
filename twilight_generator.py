@@ -10,9 +10,9 @@ class TwilightState:
 
     # Define cyclical attributes and their cycle points
     CYCLICAL_ATTRIBUTES = {
-        'time_of_day': 24.0,   # Cycles every 24 hours
-        'latitude': 360.0,     # Cycles every 360 degrees
-        'longitude': 360.0     # Cycles every 360 degrees
+        'time_of_day': 24.000001,   # Cycles every 24 hours
+        'latitude': 360.000001,     # Cycles every 360 degrees
+        'longitude': 360.000001     # Cycles every 360 degrees
     }
 
     def __init__(self, 
