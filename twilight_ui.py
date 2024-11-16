@@ -63,8 +63,10 @@ class MainWindow(QMainWindow):
 
         # Time of Day
         self.time_slider = QSlider(Qt.Horizontal)
-        self.time_slider.setRange(0, 2400)  # We can use 0 to 2400 and divide by 100 to get 0.0 to 24.0
+        self.time_slider.setRange(0, 240)
         self.time_slider.setValue(0)
+        self.time_slider.setTickPosition(QSlider.TicksBelow)
+        self.time_slider.setTickInterval(10)
         self.time_label = QLabel("Time of Day: 0.0")
         self.parameter_layout.addRow(self.time_label, self.time_slider)
 
@@ -72,6 +74,8 @@ class MainWindow(QMainWindow):
         self.latitude_slider = QSlider(Qt.Horizontal)
         self.latitude_slider.setRange(0, 3600)  # 0 to 360.0 degrees
         self.latitude_slider.setValue(0)
+        self.latitude_slider.setTickPosition(QSlider.TicksBelow)
+        self.latitude_slider.setTickInterval(300)  # Ticks every 30 degrees
         self.latitude_label = QLabel("Latitude: 0.0")
         self.parameter_layout.addRow(self.latitude_label, self.latitude_slider)
 
@@ -79,20 +83,26 @@ class MainWindow(QMainWindow):
         self.longitude_slider = QSlider(Qt.Horizontal)
         self.longitude_slider.setRange(0, 3600)  # 0 to 360.0 degrees
         self.longitude_slider.setValue(0)
+        self.longitude_slider.setTickPosition(QSlider.TicksBelow)
+        self.longitude_slider.setTickInterval(300)  # Ticks every 30 degrees
         self.longitude_label = QLabel("Longitude: 0.0")
         self.parameter_layout.addRow(self.longitude_label, self.longitude_slider)
 
         # Star Density
         self.density_slider = QSlider(Qt.Horizontal)
-        self.density_slider.setRange(10, 500)  # Represents 0.1 to 5.0 after scaling
+        self.density_slider.setRange(10, 500)
         self.density_slider.setValue(250)
+        self.density_slider.setTickPosition(QSlider.TicksBelow)
+        self.density_slider.setTickInterval(50)  # Ticks every 0.5 density units
         self.density_label = QLabel("Star Density: 2.5")
         self.parameter_layout.addRow(self.density_label, self.density_slider)
 
         # Transition Ratio
         self.transition_slider = QSlider(Qt.Horizontal)
-        self.transition_slider.setRange(5, 50)  # Represents 0.05 to 0.5 after scaling
+        self.transition_slider.setRange(5, 50)
         self.transition_slider.setValue(20)
+        self.transition_slider.setTickPosition(QSlider.TicksBelow)
+        self.transition_slider.setTickInterval(5)  # Ticks every 0.05 units
         self.transition_label = QLabel("Transition Ratio: 0.2")
         self.parameter_layout.addRow(self.transition_label, self.transition_slider)
 
@@ -190,7 +200,7 @@ class MainWindow(QMainWindow):
 
     def on_input_changed(self):
         # Read all current parameter values from UI controls
-        time_of_day = self.time_slider.value() / 100.0  # Since we used 0 to 2400
+        time_of_day = self.time_slider.value() / 10.0
         latitude = self.latitude_slider.value() / 10.0  # 0 to 360.0 degrees
         longitude = self.longitude_slider.value() / 10.0
         star_density = self.density_slider.value() / 100.0  # 10 to 500, represents 0.1 to 5.0
@@ -298,7 +308,7 @@ class MainWindow(QMainWindow):
         self.kf_frame_input.setValue(keyframe.frame_number)
         # Update sliders
         self.block_ui_signals(True)
-        self.time_slider.setValue(int(keyframe.state.time_of_day * 100))
+        self.time_slider.setValue(int(keyframe.state.time_of_day * 10))
         self.latitude_slider.setValue(int(keyframe.state.latitude * 10))
         self.longitude_slider.setValue(int(keyframe.state.longitude * 10))
         self.density_slider.setValue(int(keyframe.state.star_density * 100))
@@ -363,12 +373,13 @@ class MainWindow(QMainWindow):
 
     def update_labels(self):
         # Get values from sliders
-        time_of_day = self.time_slider.value() / 100.0
+        time_of_day = self.time_slider.value() / 10.0
         latitude = self.latitude_slider.value() / 10.0
         longitude = self.longitude_slider.value() / 10.0
         star_density = self.density_slider.value() / 100.0
         transition_ratio = self.transition_slider.value() / 100.0
         frame_number = self.frame_slider.value()
+        fps = self.fps_slider.value()
 
         # Update all labels with formatted values
         self.time_label.setText(f"Time of Day: {time_of_day:.2f}")
@@ -377,6 +388,13 @@ class MainWindow(QMainWindow):
         self.density_label.setText(f"Star Density: {star_density:.2f}")
         self.transition_label.setText(f"Transition Ratio: {transition_ratio:.2f}")
         self.current_frame_label.setText(f"Current Frame: {frame_number}")
+        self.fps_value_label.setText(f"Framerate: {fps} FPS")
+
+        # Animation
+        if self.animation_thread and self.animation_thread.isRunning():
+            self.play_button.setText("Pause")
+        else:
+            self.play_button.setText("Play")
 
     def update_ui_from_state(self, state = None, frame_number = None):
         '''If state give, set it as current state. Else use the already set state. 
@@ -396,7 +414,7 @@ class MainWindow(QMainWindow):
 
         # Update UI controls with state parameters
         self.block_ui_signals(True)
-        self.time_slider.setValue(int(state.time_of_day * 100))
+        self.time_slider.setValue(int(state.time_of_day * 10))
         self.latitude_slider.setValue(int(state.latitude * 10))
         self.longitude_slider.setValue(int(state.longitude * 10))
         self.density_slider.setValue(int(state.star_density * 100))
