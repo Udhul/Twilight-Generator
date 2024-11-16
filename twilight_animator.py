@@ -165,6 +165,7 @@ class TwilightAnimator(QObject):
         """
         self._is_running = True
         try:
+            self.frame_delay = 1.0 / self.timeline.framerate
             for frame_number, state in self.sequence_generator():
                 if not self._is_running:
                     break
