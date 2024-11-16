@@ -81,7 +81,7 @@ class Timeline:
                     return
                 
         elif isinstance(index, int) and 0 <= index < len(self.keyframes):
-            self.keyframes.pop(i)
+            self.keyframes.pop(index)
 
         elif isinstance(keyframe, Keyframe) and keyframe in self.keyframes:
             self.keyframes.remove(keyframe)
