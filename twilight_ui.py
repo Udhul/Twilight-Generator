@@ -345,7 +345,7 @@ class MainWindow(QMainWindow):
             if self.frame_slider.value() >= self.timeline.end_frame:
                 self.frame_slider.setValue(self.timeline.start_frame)
             self.timeline.framerate = self.fps_slider.value()
-            self.animator.set_current_frame(self.frame_slider.value())            
+            self.animator.set_current_frame(self.frame_slider.value())
             self.play_button.setText("Pause")
             self.animation_thread.start()
 
