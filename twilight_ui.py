@@ -14,11 +14,15 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        # Generation dimensions
+        self.image_width = 1920
+        self.image_height = 1080
+
         # Setup UI elements
         self.setup_ui()
 
         # Initialize TwilightState and TwilightGenerator
-        self.generator_thread = TwilightGeneratorThread(self.image_label.width(), self.image_label.height())
+        self.generator_thread = TwilightGeneratorThread(self.image_width, self.image_height)
         self.generator_thread.image_ready.connect(self.on_image_ready)
         self.generator_thread.start()
 
@@ -52,7 +56,7 @@ class MainWindow(QMainWindow):
 
         # Image Display Area
         self.image_label = QLabel()
-        self.image_label.setFixedSize(800, 450)
+        self.image_label.setFixedSize(int(self.image_width/2), int(self.image_height/2))
         self.image_label.setFrameShape(QFrame.Box)
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_layout.addWidget(self.image_label)
@@ -200,12 +204,14 @@ class MainWindow(QMainWindow):
 
     def on_input_changed(self):
         # Read all current parameter values from UI controls
+        width = self.image_width
+        height = self.image_height
+        seed = self.seed_input.value()
+        star_density = self.density_slider.value() / 100.0  # 10 to 500, represents 0.1 to 5.0
+        transition_ratio = self.transition_slider.value() / 100.0  # 5 to 50, represents 0.05 to 0.5
         time_of_day = self.time_slider.value() / 10.0
         latitude = self.latitude_slider.value() / 10.0  # 0 to 360.0 degrees
         longitude = self.longitude_slider.value() / 10.0
-        star_density = self.density_slider.value() / 100.0  # 10 to 500, represents 0.1 to 5.0
-        transition_ratio = self.transition_slider.value() / 100.0  # 5 to 50, represents 0.05 to 0.5
-        seed = self.seed_input.value()
         render_type = self.render_combo.currentText().lower()
 
         # Update labels
@@ -215,25 +221,25 @@ class MainWindow(QMainWindow):
             self.twilight_state = TwilightState()
 
         # Update TwilightState
+        self.twilight_state.width = width
+        self.twilight_state.height = height
+        self.twilight_state.seed = seed
         self.twilight_state.time_of_day = time_of_day
-        self.twilight_state.latitude = latitude
-        self.twilight_state.longitude = longitude
         self.twilight_state.star_density = star_density
         self.twilight_state.transition_ratio = transition_ratio
-        self.twilight_state.seed = seed
+        self.twilight_state.latitude = latitude
+        self.twilight_state.longitude = longitude
         self.twilight_state.render_type = render_type
 
         # Update render type for all keyframes
         for keyframe in self.timeline.keyframes:
-            keyframe.state.render_type = render_type
+            keyframe.state.width = width
+            keyframe.state.height = height
             keyframe.state.seed = seed
+            keyframe.state.render_type = render_type
 
-        # Update TwilightGenerator's state
-        # self.twilight_generator.set_state(self.twilight_state)
+        # Update TwilightGenerator's state. Wil emit a signal when done, which will update the image and ui
         self.generator_thread.set_state(self.frame_slider.value(), self.twilight_state)
-
-        # Generate and display the new image
-        # self.update_image()
 
     def update_image(self):
         generator = TwilightGenerator(self.twilight_state)
@@ -462,10 +468,12 @@ if __name__ == "__main__":
     window = MainWindow()
 
     default_seed = 12345
+    default_width = 1280
+    default_height = 720
     default_keyframes = [
-        Keyframe(TwilightState(seed=default_seed, time_of_day=0.0, latitude=0.0, longitude=0.0, star_density=2.5, render_type='flat'), 0),
-        Keyframe(TwilightState(seed=default_seed, time_of_day=12.0, latitude=45.0, longitude=180.0, star_density=5.0, render_type='flat'), 120),
-        Keyframe(TwilightState(seed=default_seed, time_of_day=24.0, latitude=0.0, longitude=360.0, star_density=2.5, render_type='flat'), 240)
+        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=0.0, latitude=0.0, longitude=0.0, star_density=2.5, render_type='flat'), 0),
+        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=12.0, latitude=45.0, longitude=180.0, star_density=5.0, render_type='flat'), 120),
+        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=24.0, latitude=0.0, longitude=360.0, star_density=2.5, render_type='flat'), 240)
     ]
     for kf in default_keyframes:
         window.timeline.add_keyframe(kf)
