@@ -18,7 +18,7 @@ class TwilightState:
     def __init__(self, 
                  width=1920, 
                  height=1080, 
-                 seed=None,
+                 seed=12345,
                  time_of_day=0.0,  # Hour of the day (0-24)
                  star_density=1.0,  # Multiplier for number of stars
                  transition_ratio=0.2,  # Proportion of height for color transitions
@@ -568,6 +568,9 @@ def interpolate_states(state1: TwilightState, state2: TwilightState, t: float, f
             # Non-cyclical attribute: linear interpolation (Only interpolate if int or float)
             if isinstance(value1, (int, float)) and isinstance(value2, (int, float)):
                 interpolated_value = lerp(value1, value2, t)
+                # Ensure integer attributes remain integers
+                if isinstance(value1, int) and isinstance(value2, int):
+                    interpolated_value = int(round(interpolated_value))
             else:
                 interpolated_value = value1  # Retain value1 if not numeric
 
