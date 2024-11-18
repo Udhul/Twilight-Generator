@@ -213,6 +213,7 @@ class MainWindow(QMainWindow):
         latitude = self.latitude_slider.value() / 10.0  # 0 to 360.0 degrees
         longitude = self.longitude_slider.value() / 10.0
         render_type = self.render_combo.currentText().lower()
+        fps = self.fps_slider.value()
 
         # Update labels
         self.update_labels()
@@ -230,6 +231,7 @@ class MainWindow(QMainWindow):
         self.twilight_state.latitude = latitude
         self.twilight_state.longitude = longitude
         self.twilight_state.render_type = render_type
+        self.timeline.framerate = fps
 
         # Update render type for all keyframes
         for keyframe in self.timeline.keyframes:
