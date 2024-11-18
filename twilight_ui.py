@@ -1,13 +1,16 @@
 import sys
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QSlider, QComboBox, QPushButton,
-                               QSpinBox, QListWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
-                               QFrame, QMessageBox)
-from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, Signal, Slot, QObject
+from PIL import ImageQt
 
 from twilight_generator import TwilightGenerator, TwilightState
 from twilight_animator import Keyframe, Timeline, TwilightAnimator, AnimationThread, TwilightGeneratorThread
-from PIL import ImageQt
+
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QSlider, QComboBox, QPushButton,
+                               QSpinBox, QListWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
+                               QFrame, QMessageBox, QFileDialog, QProgressDialog) 
+from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, Signal, Slot, QObject, QTimer
+
+
 
 
 class MainWindow(QMainWindow):
@@ -15,8 +18,8 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         # Generation dimensions
-        self.image_width = 1920
-        self.image_height = 1080
+        self.image_width = 1280
+        self.image_height = 720
 
         # Setup UI elements
         self.setup_ui()
@@ -56,7 +59,7 @@ class MainWindow(QMainWindow):
 
         # Image Display Area
         self.image_label = QLabel()
-        self.image_label.setFixedSize(int(self.image_width/2), int(self.image_height/2))
+        self.image_label.setFixedSize(960,640)
         self.image_label.setFrameShape(QFrame.Box)
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_layout.addWidget(self.image_label)
@@ -169,6 +172,9 @@ class MainWindow(QMainWindow):
         self.animation_layout.addWidget(self.current_frame_label)
         self.animation_layout.addWidget(self.frame_slider)
 
+        self.save_animation_button = QPushButton("Save Animation")
+        self.animation_layout.addWidget(self.save_animation_button)
+
         self.animation_group.setLayout(self.animation_layout)
 
         # Add controls to controls_layout
@@ -201,6 +207,7 @@ class MainWindow(QMainWindow):
         self.fps_slider.valueChanged.connect(self.on_fps_changed)
         self.play_button.clicked.connect(self.toggle_play)
         self.frame_slider.valueChanged.connect(self.on_frame_slider_changed)
+        self.save_animation_button.clicked.connect(self.save_animation)
 
     def on_input_changed(self):
         # Read all current parameter values from UI controls
@@ -459,6 +466,129 @@ class MainWindow(QMainWindow):
 
     def show_warning(self, message):
         QMessageBox.warning(self, "Warning", message)
+
+    def save_animation(self):
+        if len(self.timeline.keyframes) < 2:
+            self.show_warning("At least two keyframes are required to save animation.")
+            return
+            
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Save Animation",
+            "",
+            "MP4 files (*.mp4);;GIF files (*.gif)"
+        )
+        
+        if not file_path:
+            return
+        
+        # Determine format from selected filter
+        is_mp4 = "MP4" in selected_filter
+        if is_mp4 and not file_path.endswith('.mp4'):
+            file_path += '.mp4'
+        elif not is_mp4 and not file_path.endswith('.gif'):
+            file_path += '.gif'
+
+        frames = []
+        fps = self.timeline.framerate
+        duration = int(1000 / fps)
+        total_frames = self.timeline.end_frame - self.timeline.start_frame + 1
+        
+        # Create progress dialog
+        progress = QProgressDialog("Generating animation frames...", "Cancel", 0, total_frames, self)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowTitle("Saving Animation")
+        progress.setMinimumDuration(0)
+        
+        # Generate each frame
+        for frame in range(self.timeline.start_frame, self.timeline.end_frame + 1):
+            if progress.wasCanceled():
+                return
+                
+            state = self.timeline.get_state_at_frame(frame)
+            if state:
+                generator = TwilightGenerator(state)
+                frames.append(generator.get_image())
+                
+                current_frame = frame - self.timeline.start_frame + 1
+                progress.setValue(current_frame)
+                progress.setLabelText(f"Generating frame {current_frame} of {total_frames}")
+        
+        # Before saving, update progress dialog for save phase
+        progress.setLabelText("Saving animation to file...")
+        progress.setCancelButton(None)
+        progress.show()
+        QApplication.processEvents()
+        
+        if is_mp4:
+            import tempfile
+            import os
+            import subprocess
+            import shutil
+            def get_ffmpeg_path():
+                """Get the path to the ffmpeg executable."""
+                # Check in PATH
+                ffmpeg_in_path = shutil.which('ffmpeg')
+                if ffmpeg_in_path:
+                    return ffmpeg_in_path
+                    
+                # Check in current working directory
+                if os.path.exists('ffmpeg'):
+                    return './ffmpeg'
+                if os.path.exists('ffmpeg.exe'):
+                    return './ffmpeg.exe'
+                    
+                # Check in program directory
+                program_dir = os.path.dirname(os.path.abspath(__file__))
+                if os.path.exists(os.path.join(program_dir, 'ffmpeg')):
+                    return os.path.join(program_dir, 'ffmpeg')
+                if os.path.exists(os.path.join(program_dir, 'ffmpeg.exe')):
+                    return os.path.join(program_dir, 'ffmpeg.exe')
+                    
+                return None
+
+            ffmpeg_path = get_ffmpeg_path()
+            if not ffmpeg_path:
+                QMessageBox.warning(
+                    self,
+                    "FFmpeg Required",
+                    "FFmpeg is required to create MP4 files.\nPlease install FFmpeg and make sure it's available in your system PATH."
+                )
+                return
+            
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Save frames as PNGs
+                for i, frame in enumerate(frames):
+                    frame_path = os.path.join(temp_dir, f"frame_{i:04d}.png")
+                    frame.save(frame_path)
+                
+                # Use ffmpeg with correct path to create MP4
+                ffmpeg_cmd = [
+                    ffmpeg_path,
+                    '-y',
+                    '-framerate', str(fps),
+                    '-i', os.path.join(temp_dir, 'frame_%04d.png'),
+                    '-c:v', 'libx264',
+                    '-pix_fmt', 'yuv420p',
+                    '-crf', '23',
+                    file_path
+                ]
+                subprocess.run(ffmpeg_cmd, check=True)
+        else:
+            # Save as GIF
+            frames[0].save(
+                file_path,
+                save_all=True,
+                append_images=frames[1:],
+                duration=duration,
+                loop=0
+            )
+        
+        # progress.close()
+        progress.setRange(0,1)
+        progress.setWindowTitle("Done!")
+        progress.setLabelText("Done!")
+        QTimer.singleShot(1000, progress.close)
 
     def closeEvent(self, event):
         if self.animation_thread and self.animation_thread.isRunning():
