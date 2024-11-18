@@ -241,19 +241,20 @@ class MainWindow(QMainWindow):
         # Update TwilightGenerator's state. Wil emit a signal when done, which will update the image and ui
         self.generator_thread.set_state(self.frame_slider.value(), self.twilight_state)
 
-    def update_image(self):
-        generator = TwilightGenerator(self.twilight_state)
-        image = generator.get_image()
-        # Convert PIL Image to QImage
-        qt_image = ImageQt.ImageQt(image)
-        pixmap = QPixmap.fromImage(qt_image)
-        pixmap = pixmap.scaled(
-            self.image_label.width(),
-            self.image_label.height(),
-            Qt.KeepAspectRatio,
-            Qt.SmoothTransformation
-        )
-        self.image_label.setPixmap(pixmap)
+    # Superseeded by on_image_ready
+    # def update_image(self):
+    #     generator = TwilightGenerator(self.twilight_state)
+    #     image = generator.get_image()
+    #     # Convert PIL Image to QImage
+    #     qt_image = ImageQt.ImageQt(image)
+    #     pixmap = QPixmap.fromImage(qt_image)
+    #     pixmap = pixmap.scaled(
+    #         self.image_label.width(),
+    #         self.image_label.height(),
+    #         Qt.KeepAspectRatio,
+    #         Qt.SmoothTransformation
+    #     )
+    #     self.image_label.setPixmap(pixmap)
 
     def add_keyframe(self):
         frame_number = self.kf_frame_input.value()
@@ -357,8 +358,12 @@ class MainWindow(QMainWindow):
 
     @Slot(int, object, object)
     def on_image_ready(self, frame_number, state, pixmap):
-        self.image_label.setPixmap(pixmap)
-        
+        # Scale image to image_label size (image viewer) TODO: scale image viewer dynamically to image within constraints instead.
+        scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+        center_x = (scaled_pixmap.width() - self.image_label.width()) // 2
+        center_y = (scaled_pixmap.height() - self.image_label.height()) // 2
+        cropped_pixmap = scaled_pixmap.copy(center_x, center_y, self.image_label.width(), self.image_label.height())
+        self.image_label.setPixmap(cropped_pixmap)        
         # Update UI state without triggering new image generation
         self.update_ui_from_state(state, frame_number)
 
