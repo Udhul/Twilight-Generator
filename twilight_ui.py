@@ -115,6 +115,18 @@ class MainWindow(QMainWindow):
         self.render_label = QLabel("Render Type:")
         self.parameter_layout.addRow(self.render_label, self.render_combo)
 
+        # Image Size
+        self.width_input = QSpinBox()
+        self.width_input.setRange(640, 3840)
+        self.width_input.setSingleStep(64)
+        self.width_input.setValue(1280)
+        self.height_input = QSpinBox()
+        self.height_input.setRange(480, 2160)
+        self.height_input.setSingleStep(64)
+        self.height_input.setValue(720)
+        self.parameter_layout.addRow("Width:", self.width_input)
+        self.parameter_layout.addRow("Height:", self.height_input)
+
         self.parameter_group.setLayout(self.parameter_layout)
 
         # Seed Controls
@@ -192,6 +204,8 @@ class MainWindow(QMainWindow):
         self.transition_slider.valueChanged.connect(self.on_input_changed)
         self.render_combo.currentTextChanged.connect(self.on_input_changed)
         self.seed_apply_button.clicked.connect(self.on_input_changed)
+        self.width_input.valueChanged.connect(self.on_input_changed)
+        self.height_input.valueChanged.connect(self.on_input_changed)
 
         # Keyframe management
         self.add_kf_button.clicked.connect(self.add_keyframe)
@@ -207,8 +221,8 @@ class MainWindow(QMainWindow):
 
     def on_input_changed(self):
         # Read all current parameter values from UI controls
-        width = self.image_width
-        height = self.image_height
+        width = self.width_input.value()
+        height = self.height_input.value()
         seed = self.seed_input.value()
         star_density = self.density_slider.value() / 100.0  # 10 to 500, represents 0.1 to 5.0
         transition_ratio = self.transition_slider.value() / 100.0  # 5 to 50, represents 0.05 to 0.5
