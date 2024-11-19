@@ -7,7 +7,7 @@ from twilight_animator import Keyframe, Timeline, TwilightAnimator, AnimationThr
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QSlider, QComboBox, QPushButton,
                                QSpinBox, QListWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
                                QFrame, QMessageBox, QFileDialog, QProgressDialog) 
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QPainter
 from PySide6.QtCore import Qt, Signal, Slot, QObject, QTimer
 
 
@@ -17,15 +17,11 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # Generation dimensions
-        self.image_width = 1280
-        self.image_height = 720
-
         # Setup UI elements
         self.setup_ui()
 
         # Initialize TwilightState and TwilightGenerator
-        self.generator_thread = TwilightGeneratorThread(self.image_width, self.image_height)
+        self.generator_thread = TwilightGeneratorThread()
         self.generator_thread.image_ready.connect(self.on_image_ready)
         self.generator_thread.start()
 
@@ -59,7 +55,7 @@ class MainWindow(QMainWindow):
 
         # Image Display Area
         self.image_label = QLabel()
-        self.image_label.setFixedSize(960,640)
+        self.image_label.setFixedSize(960,540)
         self.image_label.setFrameShape(QFrame.Box)
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_layout.addWidget(self.image_label)
@@ -366,14 +362,38 @@ class MainWindow(QMainWindow):
             self.animation_thread.start()
 
     @Slot(int, object, object)
-    def on_image_ready(self, frame_number, state, pixmap):
-        # Scale image to image_label size (image viewer) TODO: scale image viewer dynamically to image within constraints instead.
-        scaled_pixmap = pixmap.scaled(self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
-        center_x = (scaled_pixmap.width() - self.image_label.width()) // 2
-        center_y = (scaled_pixmap.height() - self.image_label.height()) // 2
-        cropped_pixmap = scaled_pixmap.copy(center_x, center_y, self.image_label.width(), self.image_label.height())
-        self.image_label.setPixmap(cropped_pixmap)        
-        # Update UI state without triggering new image generation
+    def on_image_ready(self, frame_number, state, image):
+        # Convert PIL Image to QImage and QPixmap at original dimensions
+        qt_image = ImageQt.ImageQt(image)
+        pixmap = QPixmap.fromImage(qt_image)
+        
+        # Calculate scaling ratios
+        width_ratio = self.image_label.width() / pixmap.width()
+        height_ratio = self.image_label.height() / pixmap.height()
+        scale_ratio = min(width_ratio, height_ratio)
+        
+        # Scale image maintaining aspect ratio
+        new_width = int(pixmap.width() * scale_ratio)
+        new_height = int(pixmap.height() * scale_ratio)
+        
+        scaled_pixmap = pixmap.scaled(new_width, new_height,
+                                    Qt.AspectRatioMode.KeepAspectRatio,
+                                    Qt.TransformationMode.SmoothTransformation)
+        
+        # Center the image in the label
+        x_offset = (self.image_label.width() - new_width) // 2
+        y_offset = (self.image_label.height() - new_height) // 2
+        
+        # Create background pixmap
+        result_pixmap = QPixmap(self.image_label.size())
+        result_pixmap.fill(Qt.GlobalColor.black)
+        
+        # Paint scaled image onto centered background
+        painter = QPainter(result_pixmap)
+        painter.drawPixmap(x_offset, y_offset, scaled_pixmap)
+        painter.end()
+        
+        self.image_label.setPixmap(result_pixmap)
         self.update_ui_from_state(state, frame_number)
 
     @Slot(int, TwilightState)

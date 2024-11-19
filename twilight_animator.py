@@ -252,17 +252,14 @@ class AnimationThread(QThread):
 class TwilightGeneratorThread(QThread):
     image_ready = Signal(int, object, object)  # frame_number, state, image
     
-    def __init__(self, width, height):
+    def __init__(self):
         super().__init__()
-        self.width = width
-        self.height = height
         self.current_state = None
         self.next_state = None
         self.current_frame = 0
         self.next_frame = 0
         self.running = True
         self.generator = TwilightGenerator(TwilightState())
-        # self.moveToThread(self)
         
     def set_state(self, frame_number, state):
         self.next_frame = frame_number
@@ -281,19 +278,9 @@ class TwilightGeneratorThread(QThread):
                 self.generator.set_state(self.current_state)
                 self.generator.generate()
                 image = self.generator.get_image()
-                
-                # Convert PIL Image to QImage
-                qt_image = ImageQt.ImageQt(image)
-                pixmap = QPixmap.fromImage(qt_image)
-                pixmap = pixmap.scaled(
-                    self.width,
-                    self.height,
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation
-                )
 
                 # Emit the result
-                self.image_ready.emit(self.current_frame, self.current_state, pixmap)
+                self.image_ready.emit(self.current_frame, self.current_state, image)
             else:
                 # Sleep briefly if no work to do
                 self.msleep(1)
