@@ -637,4 +637,12 @@ if __name__ == "__main__":
     window.update_keyframes_list()
     window.update_frame_slider_range()
     window.show()
+
+    # Center the window on the screen
+    screen = QApplication.primaryScreen().geometry()
+    x = (screen.width() - window.width()) // 2
+    y = (screen.height() - window.height()) // 2
+    window.move(x, y)
+
+    # Start the event loop
     sys.exit(app.exec())
