@@ -260,21 +260,6 @@ class MainWindow(QMainWindow):
         # Update TwilightGenerator's state. Wil emit a signal when done, which will update the image and ui
         self.generator_thread.set_state(self.frame_slider.value(), self.twilight_state)
 
-    # Superseeded by on_image_ready
-    # def update_image(self):
-    #     generator = TwilightGenerator(self.twilight_state)
-    #     image = generator.get_image()
-    #     # Convert PIL Image to QImage
-    #     qt_image = ImageQt.ImageQt(image)
-    #     pixmap = QPixmap.fromImage(qt_image)
-    #     pixmap = pixmap.scaled(
-    #         self.image_label.width(),
-    #         self.image_label.height(),
-    #         Qt.KeepAspectRatio,
-    #         Qt.SmoothTransformation
-    #     )
-    #     self.image_label.setPixmap(pixmap)
-
     def add_keyframe(self):
         frame_number = self.kf_frame_input.value()
         state_copy = self.twilight_state.copy()
