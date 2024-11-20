@@ -20,7 +20,7 @@ class TwilightState:
                  height=1080, 
                  seed=12345,
                  time_of_day=0.0,  # Hour of the day (0-24)
-                 star_density=1.0,  # Multiplier for number of stars
+                 star_density=0.5,  # Multiplier for number of stars
                  transition_ratio=0.2,  # Proportion of height for color transitions
                  latitude=0.0,    # 0.0 to 360.0 degrees
                  longitude=0.0,    # 0.0 to 360.0 degrees
@@ -104,7 +104,7 @@ class TwilightState:
     @star_density.setter
     def star_density(self, value):
         if isinstance(value, (int, float)):
-            self._star_density = clamp(value, 0.1, 5.0)
+            self._star_density = clamp(value, 0.0, 1.0)
         else:
             raise ValueError("Star density must be a number (float or int).")
 

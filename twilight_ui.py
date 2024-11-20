@@ -93,11 +93,11 @@ class MainWindow(QMainWindow):
 
         # Star Density
         self.density_slider = QSlider(Qt.Horizontal)
-        self.density_slider.setRange(10, 500)
-        self.density_slider.setValue(250)
+        self.density_slider.setRange(0, 100)
+        self.density_slider.setValue(50)
         self.density_slider.setTickPosition(QSlider.TicksBelow)
-        self.density_slider.setTickInterval(50)  # Ticks every 0.5 density units
-        self.density_label = QLabel("Star Density: 2.5")
+        self.density_slider.setTickInterval(5)  # Ticks every 0.5 density units
+        self.density_label = QLabel("Star Density: 0.5")
         self.parameter_layout.addRow(self.density_label, self.density_slider)
 
         # Transition Ratio
@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
         width = self.width_input.value()
         height = self.height_input.value()
         seed = self.seed_input.value()
-        star_density = self.density_slider.value() / 100.0  # 10 to 500, represents 0.1 to 5.0
+        star_density = self.density_slider.value() / 100.0  # 0 to 100, represents 0.0 to 1.0
         transition_ratio = self.transition_slider.value() / 100.0  # 5 to 50, represents 0.05 to 0.5
         time_of_day = self.time_slider.value() / 10.0
         latitude = self.latitude_slider.value() / 10.0  # 0 to 360.0 degrees
