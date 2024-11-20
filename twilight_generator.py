@@ -1,7 +1,7 @@
 import random
 import math
 from PIL import Image, ImageDraw, ImageQt
-from utils import clamp, lerp, slerp
+from utils import clamp, lerp, slerp, lerp_color
 
 class TwilightState:
     """
@@ -192,63 +192,63 @@ class TwilightGenerator:
     """
     Generates twilight wallpaper images based on the provided TwilightState.
     """
+
+    # Constants
+    NUM_SMALL_STARS = 2500
+    NUM_BIG_STARS = 200
+
+    ORANGE = (255, 72, 0)
+    BLUE = (0, 110, 189)
+    BLACK = (0, 0, 0)
+    WHITE = (255, 255, 255)
+
     def __init__(self, state: TwilightState):
         """
         Initializes the TwilightGenerator with a given TwilightState.
-
-        Parameters:
-        - state (TwilightState): The state containing all parameters for generation.
         """
         self.state = state
-        self.width = state.width
-        self.height = state.height
-        self.seed = state.seed
-        self.time_of_day = state.time_of_day
-        self.star_density = state.star_density
-        self.transition_ratio = state.transition_ratio
-        self.latitude = state.latitude
-        self.longitude = state.longitude
-        self.render_type = state.render_type
-
+        self._initialize_parameters()
+        self._initialize_stars()
         self.image = None
-        self.draw = None
 
-        # Base colors
-        self.orange = (255, 72, 0)
-        self.blue = (0, 110, 189)
-        self.black = (0, 0, 0)
-        self.white = (255, 255, 255)
+    def _initialize_parameters(self):
+        """Initialize parameters based on the current state."""
+        self.width = self.state.width
+        self.height = self.state.height
+        self.seed = self.state.seed
+        self.time_of_day = self.state.time_of_day
+        self.star_density = self.state.star_density
+        self.transition_ratio = self.state.transition_ratio
+        self.latitude = self.state.latitude
+        self.longitude = self.state.longitude
+        self.render_type = self.state.render_type
 
         # Initialize random generator with seed
         self.random_gen = random.Random(self.seed)
 
-        # Define maximum density
-        self.max_density = 5.0
-
-        # Base star counts
-        self.base_small_stars = 2500
-        self.base_big_stars = 200
-
-        # Calculate scale factor based on dimensions
-        scale_factor = (self.width * self.height) / (1920 * 1080)
-
-        # Calculate total stars based on scale factor and max density
-        self.total_small_stars = int(self.base_small_stars * scale_factor * self.max_density)
-        self.total_big_stars = int(self.base_big_stars * scale_factor * self.max_density)
-
         # Define star size ranges
-        size_min = max(1, int(self.width / 960))  # Ensures at least size 1
-        size_max = max(2, int(self.width / 480))  # Ensures at least size 2
+        self.size_min = max(1, int(self.width * 0.001))  # 0.1% of width
+        self.size_max = max(2, int(self.width * 0.002))  # 0.2% of width
 
-        # Generate master star lists with normalized coordinates (0-1)
-        self.master_small_stars = [
+    def _initialize_stars(self):
+        """Generate master star lists based on the current state."""
+        # Calculate total stars based on density
+        self.total_small_stars = int(self.NUM_SMALL_STARS * self.star_density)
+        self.total_big_stars = int(self.NUM_BIG_STARS * self.star_density)
+
+        # Generate small stars with normalized coordinates
+        self.small_stars = [
             (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1))
             for _ in range(self.total_small_stars)
         ]
 
-        self.master_big_stars = [
-            (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1),
-            self.random_gen.randint(size_min, size_max) / self.width)
+        # Generate big stars with normalized coordinates and size factor
+        self.big_stars = [
+            (
+                self.random_gen.uniform(0, 1),
+                self.random_gen.uniform(0, 1),
+                self.random_gen.randint(self.size_min, self.size_max) / self.width
+            )
             for _ in range(self.total_big_stars)
         ]
 
@@ -259,258 +259,165 @@ class TwilightGenerator:
         Parameters:
         - state (TwilightState): The new state to apply.
         """
-        if self.seed != state.seed:
-            # Only regenerate stars if seed changes
-            self.seed = state.seed
-            self.random_gen = random.Random(self.seed)
-            self._initialize_stars()
-        
-        # Update other state parameters
+        regenerate_stars = (
+            self.seed != state.seed or
+            self.width != state.width or
+            self.height != state.height or
+            self.star_density != state.star_density
+        )
+
         self.state = state
-        self.width = state.width
-        self.height = state.height
-        self.time_of_day = state.time_of_day
-        self.star_density = state.star_density
-        self.transition_ratio = state.transition_ratio
-        self.latitude = state.latitude
-        self.longitude = state.longitude
-        self.render_type = state.render_type
+        self._initialize_parameters()
 
-    def _initialize_stars(self):
-        """Regenerate master star lists with current seed"""
-        size_min = max(1, int(self.width / 960))
-        size_max = max(2, int(self.width / 480))
-        
-        self.master_small_stars = [
-            (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1))
-            for _ in range(self.total_small_stars)
-        ]
+        if regenerate_stars:
+            self._initialize_stars()
 
-        self.master_big_stars = [
-            (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1),
-            self.random_gen.randint(size_min, size_max) / self.width)
-            for _ in range(self.total_big_stars)
-        ]
+    def _create_gradient(self) -> Image.Image:
+        """
+        Creates a gradient image based on the current time_of_day and transition_ratio.
 
-    def get_star_color(self, y):
+        Returns:
+        - PIL.Image.Image: The gradient overlay.
+        """
+        gradient = Image.new('RGBA', (self.width, self.height), self.BLACK)
+        draw = ImageDraw.Draw(gradient)
+
+        cutoff = self.height * self.transition_ratio
+
+        # Map time_of_day (0-24) to a phase (0-1)
+        phase = (self.time_of_day % 24) / 24.0
+
+        # Define gradient colors based on phase
+        if phase < 0.25:
+            # Midnight to Dawn: black to orange
+            ratio = phase / 0.25
+            top_color = lerp_color(self.BLACK, self.ORANGE, ratio)
+            bottom_color = lerp_color(self.BLACK, self.BLUE, ratio)
+        elif phase < 0.5:
+            # Dawn to Noon: orange to blue
+            ratio = (phase - 0.25) / 0.25
+            top_color = lerp_color(self.ORANGE, self.BLUE, ratio)
+            bottom_color = self.BLUE
+        elif phase < 0.75:
+            # Noon to Sunset: blue to orange
+            ratio = (phase - 0.5) / 0.25
+            top_color = lerp_color(self.BLUE, self.ORANGE, ratio)
+            bottom_color = lerp_color(self.BLUE, self.BLACK, ratio)
+        else:
+            # Sunset to Midnight: orange to black
+            ratio = (phase - 0.75) / 0.25
+            top_color = lerp_color(self.ORANGE, self.BLACK, ratio)
+            bottom_color = self.BLACK
+
+        # Draw the upper gradient (top to cutoff)
+        for y in range(int(cutoff)):
+            t = y / cutoff
+            color = lerp_color(top_color, bottom_color, t)
+            draw.line([(0, y), (self.width, y)], fill=color + (255,))
+
+        # Draw the lower gradient (cutoff to bottom)
+        for y in range(int(cutoff), self.height):
+            t = (y - cutoff) / (self.height - cutoff)
+            color = lerp_color(bottom_color, self.BLACK, t)
+            draw.line([(0, y), (self.width, y)], fill=color + (255,))
+
+        return gradient
+
+    def _draw_stars(self, base_image: Image.Image) -> Image.Image:
+        """
+        Draws stars onto the base image.
+
+        Parameters:
+        - base_image (PIL.Image.Image): The image to draw stars on.
+
+        Returns:
+        - PIL.Image.Image: The image with stars drawn.
+        """
+        draw = ImageDraw.Draw(base_image)
+
+        # Calculate shifts for flat projection
+        longitude_shift = (self.longitude / 360.0) * self.width
+        latitude_shift = (self.latitude / 360.0) * self.height
+
+        # Ensure seamless repetition
+        longitude_shift %= self.width
+        latitude_shift %= self.height
+
+        # Draw small stars as single pixels
+        for norm_x, norm_y in self.small_stars:
+            x = int((norm_x * self.width + longitude_shift) % self.width)
+            y = int((norm_y * self.height + latitude_shift) % self.height)
+
+            color = self._get_star_color(y)
+            if 0 <= x < self.width and 0 <= y < self.height:
+                base_image.putpixel((x, self.height - y - 1), color + (255,))
+
+        # Draw big stars as diamonds
+        for norm_x, norm_y, norm_size in self.big_stars:
+            x = int((norm_x * self.width + longitude_shift) % self.width)
+            y = int((norm_y * self.height + latitude_shift) % self.height)
+            size = max(1, int(norm_size * self.width))
+
+            color = self._get_star_color(y)
+            # Draw diamond shape
+            for dx, dy in [(-size, 0), (0, -size), (size, 0), (0, size)]:
+                xi, yi = x + dx, y + dy
+                xi = clamp(xi, 0, self.width - 1)
+                yi = clamp(yi, 0, self.height - 1)
+                base_image.putpixel((xi, self.height - yi - 1), color + (255,))
+
+        return base_image
+
+    def _get_star_color(self, y: int) -> tuple[int, int, int]:
         """
         Determines the color of a star based on its y-coordinate.
 
         Parameters:
-        - y (float): The y-coordinate of the star in pixels.
+        - y (int): The y-coordinate of the star.
 
         Returns:
-        - Tuple of (r, g, b)
+        - Tuple[int, int, int]: The RGB color of the star.
         """
-        # y=0 is top, y=height is bottom
-        ratio = y / self.height
-        cutoff = self.transition_ratio
+        if y > self.height / 2:
+            return self.WHITE
 
-        # Stars should be drawn above the transition line
-        if ratio < cutoff:
-            # Transition from orange to blue
-            t = (ratio) / cutoff
-            r = int(lerp(self.orange[0], self.blue[0], t))
-            g = int(lerp(self.orange[1], self.blue[1], t))
-            b = int(lerp(self.orange[2], self.blue[2], t))
+        cutoff = self.height * self.transition_ratio
+
+        if y < cutoff:
+            ratio = y / cutoff
+            base_color = lerp_color(self.ORANGE, self.BLUE, ratio)
         else:
-            # Upper half stars are white
-            return self.white
+            ratio = (y - cutoff) / (self.height - cutoff)
+            base_color = lerp_color(self.BLUE, self.BLACK, ratio)
 
-        # Adjust brightness based on time_of_day (24-hour cycle)
-        # 0 and 24 = darkest, 12 = brightest
-        night_factor = -math.cos((self.time_of_day / 12.0) * math.pi) * 0.5 + 1  # Inverted
+        # Blend with white based on the position
+        a = clamp(y / (self.height / 2.0), 0.0, 1.0)
+        blended_color = (
+            clamp(int(base_color[0] * (1.0 - a) + self.WHITE[0] * a), 0, 255),
+            clamp(int(base_color[1] * (1.0 - a) + self.WHITE[1] * a), 0, 255),
+            clamp(int(base_color[2] * (1.0 - a) + self.WHITE[2] * a), 0, 255)
+        )
 
-        # Adjust brightness based on night_factor
-        r = int(r * night_factor)
-        g = int(g * night_factor)
-        b = int(b * night_factor)
-
-        return (r, g, b)
+        return blended_color
 
     def generate(self):
         """
         Generates the twilight wallpaper image based on the current state.
         """
-        # Create a new image with RGBA mode to support transparency for gradient
-        self.image = Image.new('RGBA', (self.width, self.height), self.black)
-        self.draw = ImageDraw.Draw(self.image)
+        # Create base image with black background
+        base_image = Image.new('RGBA', (self.width, self.height), self.BLACK)
 
-        # Draw stars based on render_type
-        if self.render_type == 'spherical':
-            self._generate_stars_spherical()
-        elif self.render_type == 'flat':
-            self._generate_stars_flat()
-        else:
-            raise ValueError("Invalid render_type. Choose 'spherical' or 'flat'.")
+        # Apply gradient
+        gradient = self._create_gradient()
+        base_image = Image.alpha_composite(base_image, gradient)
 
-        # Create and apply gradient overlay
-        self._apply_gradient()
+        # Draw stars
+        base_image = self._draw_stars(base_image)
 
-        # Flip the image vertically to correct orientation
-        self.image = self.image.transpose(Image.FLIP_TOP_BOTTOM)
+        # Finalize image
+        self.image = base_image.convert('RGB')
 
-        # Convert to RGB after compositing
-        self.image = self.image.convert('RGB')
-
-    def _generate_stars_spherical(self):
-        """Generates stars using spherical projection."""
-        # Field of view settings
-        fov = 30.0  # Field of view in degrees
-        aspect_ratio = self.width / self.height
-        fov_vertical = 2 * math.degrees(math.atan(math.tan(math.radians(fov / 2)) / aspect_ratio))
-
-        # Convert longitude/latitude to radians
-        lon_rad = math.radians(self.longitude)
-        lat_rad = math.radians(self.latitude)
-
-        # Draw small stars with spherical projection
-        density_ratio = self.star_density / self.max_density
-        total_small_stars_display = int(len(self.master_small_stars) * density_ratio)
-        total_big_stars_display = int(len(self.master_big_stars) * density_ratio)
-
-        for star in self.master_small_stars[:total_small_stars_display]:
-            norm_x, norm_y = star
-
-            # Convert normalized coordinates to spherical angles
-            star_lon = norm_x * 2 * math.pi
-            star_lat = (norm_y - 0.5) * math.pi
-
-            # Calculate relative position from viewing angle
-            dx = math.cos(star_lat) * math.sin(star_lon - lon_rad)
-            dy = (math.cos(star_lat) * math.cos(star_lon - lon_rad) * math.sin(lat_rad)
-                  - math.sin(star_lat) * math.cos(lat_rad))
-            dz = (math.cos(star_lat) * math.cos(star_lon - lon_rad) * math.cos(lat_rad)
-                  + math.sin(star_lat) * math.sin(lat_rad))
-
-            # Project only visible stars (dz > 0 means in front of viewer)
-            if dz > 0:
-                # Convert to screen coordinates
-                x = int(self.width * (0.5 + (dx / (2 * math.tan(math.radians(fov / 2))))))
-                y = int(self.height * (0.5 + (dy / (2 * math.tan(math.radians(fov_vertical / 2))))))
-
-                color = self.get_star_color(y)
-
-                if 0 <= x < self.width and 0 <= y < self.height:
-                    self.image.putpixel((x, y), color + (255,))
-
-        # Draw big stars
-        for star in self.master_big_stars[:total_big_stars_display]:
-            norm_x, norm_y, norm_size = star
-
-            star_lon = norm_x * 2 * math.pi
-            star_lat = (norm_y - 0.5) * math.pi
-
-            dx = math.cos(star_lat) * math.sin(star_lon - lon_rad)
-            dy = (math.cos(star_lat) * math.cos(star_lon - lon_rad) * math.sin(lat_rad)
-                  - math.sin(star_lat) * math.cos(lat_rad))
-            dz = (math.cos(star_lat) * math.cos(star_lon - lon_rad) * math.cos(lat_rad)
-                  + math.sin(star_lat) * math.sin(lat_rad))
-
-            if dz > 0:
-                x = int(self.width * (0.5 + (dx / (2 * math.tan(math.radians(fov / 2))))))
-                y = int(self.height * (0.5 + (dy / (2 * math.tan(math.radians(fov_vertical / 2))))))
-                size = int(norm_size * self.width)
-
-                color = self.get_star_color(y)
-
-                points = [
-                    (x, y - size),
-                    (x + size, y),
-                    (x, y + size),
-                    (x - size, y)
-                ]
-                if 0 <= x < self.width and 0 <= y < self.height:
-                    self.draw.polygon(points, fill=color + (255,))
-
-    def _generate_stars_flat(self):
-        """Generates stars using flat projection."""
-        # Calculate shifts based on latitude and longitude
-        longitude_shift = (self.longitude / 360.0) * self.width
-        latitude_shift = (self.latitude / 360.0) * self.height
-
-        # Use star density to determine how many stars to display
-        density_ratio = self.star_density / self.max_density
-        total_small_stars_display = int(len(self.master_small_stars) * density_ratio)
-        total_big_stars_display = int(len(self.master_big_stars) * density_ratio)
-
-        # Draw small stars using consistent positions
-        for star in self.master_small_stars[:total_small_stars_display]:
-            norm_x, norm_y = star
-            # Apply shifts to normalized coordinates
-            shifted_x = (norm_x * self.width + longitude_shift) % self.width
-            shifted_y = (norm_y * self.height + latitude_shift) % self.height
-            x = int(shifted_x)
-            y = int(shifted_y)
-
-            color = self.get_star_color(y)
-
-            if 0 <= x < self.width and 0 <= y < self.height:
-                self.image.putpixel((x, y), color + (255,))
-
-        # Draw big stars
-        for star in self.master_big_stars[:total_big_stars_display]:
-            norm_x, norm_y, norm_size = star
-            shifted_x = (norm_x * self.width + longitude_shift) % self.width
-            shifted_y = (norm_y * self.height + latitude_shift) % self.height
-            x = int(shifted_x)
-            y = int(shifted_y)
-            size = int(norm_size * self.width)
-
-            color = self.get_star_color(y)
-
-            points = [
-                (x, y - size),
-                (x + size, y),
-                (x, y + size),
-                (x - size, y)
-            ]
-            if 0 <= x < self.width and 0 <= y < self.height:
-                self.draw.polygon(points, fill=color + (255,))
-
-    def _apply_gradient(self):
-        """Creates and applies the gradient overlay based on time of day."""
-        gradient = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
-        gradient_draw = ImageDraw.Draw(gradient)
-
-        # Calculate gradient position based on time of day
-        # Move gradient up/down based on time - fully below view at night
-        time_factor = math.cos((self.time_of_day / 24.0) * 2 * math.pi)
-        gradient_offset = max(int(self.height * (1.0 + time_factor)), 0)
-        
-        # Make sure gradient does not exceed image boundaries
-        gradient_offset = min(gradient_offset, self.height)
-
-        for y in range(self.height):
-            adjusted_y = y + gradient_offset
-            if adjusted_y < 0 or adjusted_y >= self.height:
-                continue
-
-            ratio = adjusted_y / self.height
-            orange_ratio = self.transition_ratio * 0.75  # Make orange portion 75% of transition area
-
-            if ratio < orange_ratio:
-                # Transition from orange to blue
-                t = ratio / orange_ratio
-                r = int(lerp(self.orange[0], self.blue[0], t))
-                g = int(lerp(self.orange[1], self.blue[1], t))
-                b = int(lerp(self.orange[2], self.blue[2], t))
-                alpha = 255
-            else:
-                # Transition from blue to transparent
-                t = (ratio - orange_ratio) / (1 - orange_ratio)
-                t = clamp(t, 0.0, 1.0)
-                r = int(lerp(self.blue[0], 0, t))
-                g = int(lerp(self.blue[1], 0, t))
-                b = int(lerp(self.blue[2], 0, t))
-                alpha = int(255 * (1.0 - t))
-
-            gradient_draw.line([(0, y), (self.width, y)], fill=(r, g, b, alpha))
-
-        # Composite gradient over star field
-        self.image = Image.alpha_composite(self.image, gradient)
-
-    def get_image(self) -> Image.Image:
+    def get_image(self, reverse_y = True) -> Image.Image:
         """
         Returns the generated image.
 
@@ -519,7 +426,10 @@ class TwilightGenerator:
         """
         if self.image is None:
             self.generate()
-        return self.image.copy()
+        if reverse_y:
+            return self.image.copy().transpose(Image.FLIP_TOP_BOTTOM)
+        else:
+            return self.image.copy()
 
     def save_image(self, filepath: str):
         """
@@ -532,7 +442,6 @@ class TwilightGenerator:
             self.image.save(filepath)
         else:
             raise ValueError("No image generated to save.")
-        
 
 def interpolate_states(state1: TwilightState, state2: TwilightState, t: float, forward: bool = True) -> TwilightState:
     """
