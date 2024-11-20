@@ -232,25 +232,32 @@ class TwilightGenerator:
 
     def _initialize_stars(self):
         """Generate master star lists based on the current state."""
-        # Calculate total stars based on density
-        self.total_small_stars = int(self.NUM_SMALL_STARS * self.star_density)
-        self.total_big_stars = int(self.NUM_BIG_STARS * self.star_density)
+        # Calculate maximum possible stars
+        max_small_stars = self.NUM_SMALL_STARS
+        max_big_stars = self.NUM_BIG_STARS
 
-        # Generate small stars with normalized coordinates
-        self.small_stars = [
+        # Generate all possible stars with normalized coordinates using the seed
+        all_small_stars = [
             (self.random_gen.uniform(0, 1), self.random_gen.uniform(0, 1))
-            for _ in range(self.total_small_stars)
+            for _ in range(max_small_stars)
         ]
 
-        # Generate big stars with normalized coordinates and size factor
-        self.big_stars = [
+        all_big_stars = [
             (
                 self.random_gen.uniform(0, 1),
                 self.random_gen.uniform(0, 1),
                 self.random_gen.randint(self.size_min, self.size_max) / self.width
             )
-            for _ in range(self.total_big_stars)
+            for _ in range(max_big_stars)
         ]
+
+        # Take subsets based on density
+        self.total_small_stars = int(max_small_stars * self.star_density)
+        self.total_big_stars = int(max_big_stars * self.star_density)
+        
+        # Use slicing to get the desired number of stars
+        self.small_stars = all_small_stars[:self.total_small_stars]
+        self.big_stars = all_big_stars[:self.total_big_stars]
 
     def set_state(self, state: TwilightState):
         """
