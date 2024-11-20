@@ -95,6 +95,7 @@ class MainWindow(QMainWindow):
         self.density_slider = QSlider(Qt.Horizontal)
         self.density_slider.setRange(0, 100)
         self.density_slider.setValue(50)
+        # self.density_slider.setSingleStep(5)
         self.density_slider.setTickPosition(QSlider.TicksBelow)
         self.density_slider.setTickInterval(5)  # Ticks every 0.5 density units
         self.density_label = QLabel("Star Density: 0.5")
@@ -627,9 +628,9 @@ if __name__ == "__main__":
     default_width = 1280
     default_height = 720
     default_keyframes = [
-        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=0.0, latitude=0.0, longitude=0.0, star_density=2.5, render_type='flat'), 0),
-        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=12.0, latitude=45.0, longitude=180.0, star_density=5.0, render_type='flat'), 120),
-        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=24.0, latitude=0.0, longitude=360.0, star_density=2.5, render_type='flat'), 240)
+        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=0.0, latitude=0.0, longitude=0.0, star_density=1.0, render_type='flat'), 0),
+        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=12.0, latitude=45.0, longitude=180.0, star_density=0.5, render_type='flat'), 120),
+        Keyframe(TwilightState(width=default_width, height=default_height, seed=default_seed, time_of_day=24.0, latitude=0.0, longitude=360.0, star_density=1.0, render_type='flat'), 240)
     ]
     for kf in default_keyframes:
         window.timeline.add_keyframe(kf)
